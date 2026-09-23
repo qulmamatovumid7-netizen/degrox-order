@@ -9,6 +9,45 @@ st.set_page_config(
     page_title="Degrox - Буюртма бериш тизими", page_icon="📦", layout="centered"
 )
 
+# Сессияда логин қилганини текшириш
+if "authenticated" not in st.session_state:
+  st.session_state["authenticated"] = False
+
+# Агар тизимга кирмаган бўлса, Логин ойнасини кўрсатиш
+if not st.session_state["authenticated"]:
+  st.markdown(
+      "<h2 style='text-align: center;'>🔐 Тизимга кириш</h2>",
+      unsafe_allow_html=True,
+  )
+
+  col1, col2, col3 = st.columns([1, 2, 1])
+  with col2:
+    with st.form("login_form"):
+      username = st.text_input("Логин")
+      password = st.text_input("Пароль", type="password")
+      submit_button = st.form_submit_button(
+          "Кириш", use_container_width=True, type="primary"
+      )
+
+      if submit_button:
+        # Умумий ягона логин ва пароль текшируви
+        if username == "Virexo+" and password == "220926":
+          st.session_state["authenticated"] = True
+          st.success("Хуш келибсиз!")
+          st.rerun()
+        else:
+          st.error("Логин ёки пароль нотўғри!")
+  st.stop()  # Логин тўғри киритилмагунча қолган кодни тўхтатиб туради
+
+# ==========================================
+# АГАР ТИЗИМГА МУВАФФАҚИЯТЛИ КИРИЛГАН БЎЛСА:
+# ==========================================
+
+# Чиқиш (Logout) тугмаси
+if st.sidebar.button("🚪 Тизимдан чиқиш"):
+  st.session_state["authenticated"] = False
+  st.rerun()
+
 # JSON файл номи
 DATA_FILE = "orders.json"
 
