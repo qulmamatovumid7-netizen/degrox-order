@@ -30,19 +30,14 @@ def save_data(data):
     json.dump(data, f, ensure_ascii=False, indent=4)
 
 
-# Логотипларни саҳифа юқорисида ёниқма-ён чиқариш
-col_logo1, col_logo2, col_logo3 = st.columns([1, 1, 1])
-with col_logo2:  # Иккала логотип ўртада чиройли туриши учун
-  pass
-
-# Агар логотиплар алоҳида колонналарга қўйилса:
+# Логотипларни саҳифа юқорисида ёнма-ён чиқариш
 l_col1, l_col2 = st.columns(2)
 with l_col1:
-  if os.path.exists("Лого/Degrox.png"):
-    st.image("Лого/Degrox.png", width=180)
+  if os.path.exists("Degrox.png"):
+    st.image("Degrox.png", width=180)
 with l_col2:
-  if os.path.exists("Лого/Virexo.png"):
-    st.image("Лого/Virexo.png", width=180)
+  if os.path.exists("Virexo.png"):
+    st.image("Virexo.png", width=180)
 
 st.markdown("---")
 
