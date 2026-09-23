@@ -94,7 +94,7 @@ with tab1:
       try:
         vaqt = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-        # Буюртма қилинган маҳсулотларни матн кўринишида йиғамиз (масалан: "Гель - 2 та, Казан - 1 та")
+        # Буюртма қилинган маҳсулотларни матн кўринишида йиғамиз
         tanlangan_mahsulotlar_list = []
         for nomi, miqdor in miqdorlar.items():
           if miqdor > 0:
@@ -102,7 +102,6 @@ with tab1:
 
         mahsulotlar_matni = "; ".join(tanlangan_mahsulotlar_list)
 
-        # Дўконнинг умумий буюртмасини битта луғат (dict) сифатида тузамиз
         yangi_buyurtma = {
             "Vaqt": vaqt,
             "Agent": agent_ismi,
@@ -117,9 +116,14 @@ with tab1:
 
         df_yangi = pd.DataFrame([yangi_buyurtma])
 
+        # Агар эски форматдаги файл мавжуд бўлса, уни янги форматга ўтказиш ёки янгидан бошлаш учун ўчирамиз
         if os.path.exists(CSV_FILE):
           df_eski = pd.read_csv(CSV_FILE)
-          df_final = pd.concat([df_eski, df_yangi], ignore_index=True)
+          # Агар эски файлда янги устунлар бўлмаса, файлни тозалаб юборамиз (структура бузилмаслиги учун)
+          if "Buyurtma_tarkibi" not in df_eski.columns:
+            df_final = df_yangi
+          else:
+            df_final = pd.concat([df_eski, df_yangi], ignore_index=True)
         else:
           df_final = df_yangi
 
@@ -162,73 +166,82 @@ with tab2:
 
   if os.path.exists(CSV_FILE):
     df_orders = pd.read_csv(CSV_FILE)
-    if not df_orders.empty:
-      # Зарурий устунлар мавжудлигини текшириш (эски файллар билан мослашиш учун)
-      if "Status" not in df_orders.columns:
-        df_orders["Status"] = "⏳ Кутилмоқда"
 
-      st.write(
-          "Ҳар бир дўкон буюртмаси алоҳида қаторда кўрсатилган. Статусни"
-          " ўзгартириб сақлашингиз мумкин:"
+    # Агар эски форматдаги файл бўлса, фойдаланувчуга уни тозалашни маслаҳат берамиз
+    if "Buyurtma_tarkibi" not in df_orders.columns:
+      st.warning(
+          "⚠️ Эски форматдаги буюртмалар аниқланди. Янги умумий буюртмалар"
+          " тизимига ўтиш учун илтимос, пастдаги тугма орқали тарихни"
+          " тозалаб юборинг!"
       )
-
-      # Интерактив жадвал
-      edited_df = st.data_editor(
-          df_orders,
-          column_config={
-              "Status": st.column_config.SelectboxColumn(
-                  "Статус",
-                  help="Буюртма ҳолатини танланг",
-                  options=[
-                      "⏳ Кутилмоқда",
-                      "🚚 Йўлда",
-                      "✅ Етказиб берилди",
-                      "❌ Бекор қилинди",
-                  ],
-                  required=True,
-              ),
-              "Jami_Summa": st.column_config.NumberColumn(
-                  "Жами сумма (сўм)", format="%d сўм"
-              ),
-          },
-          use_container_width=True,
-          num_rows="fixed",
-          key="store_orders_editor",
-      )
-
-      # Ўзгаришларни сақлаш тугмаси
-      if st.button("💾 Статусларни сақлаш", type="primary"):
-        edited_df.to_csv(CSV_FILE, index=False, encoding="utf-8-sig")
-        st.success("Буюртмалар статуслари муваффақиятли сақланди!")
+      if st.button("🗑️ Эски тарихни тозалаш", type="primary"):
+        os.remove(CSV_FILE)
+        st.success("Тарих тозаланди! Энди янги буюртма беришингиз мумкин.")
         st.rerun()
-
-      st.markdown("---")
-
-      col_btn1, col_btn2 = st.columns(2)
-
-      with col_btn1:
-        csv_data = edited_df.to_csv(index=False, encoding="utf-8-sig").encode(
-            "utf-8-sig"
-        )
-        st.download_button(
-            label="📥 Жадвални Excel форматида юклаб олиш",
-            data=csv_data,
-            file_name="degrox_store_orders.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
-
-      with col_btn2:
-        if st.button(
-            "🗑️ Буюртмалар тарихини тозалаш",
-            type="secondary",
-            use_container_width=True,
-        ):
-          os.remove(CSV_FILE)
-          st.success("Буюртмалар тарихи муваффақиятли тозаланди!")
-          st.rerun()
     else:
-      st.info("Ҳозирча буюртмалар мавжуд эмас.")
+      if not df_orders.empty:
+        st.write(
+            "Ҳар бир дўкон буюртмаси битта сатрда кўрсатилган. Статусни"
+            " ўзгартириб сақлашингиз мумкин:"
+        )
+
+        # Интерактив жадвал
+        edited_df = st.data_editor(
+            df_orders,
+            column_config={
+                "Status": st.column_config.SelectboxColumn(
+                    "Статус",
+                    help="Буюртма ҳолатини танланг",
+                    options=[
+                        "⏳ Кутилмоқда",
+                        "🚚 Йўлда",
+                        "✅ Етказиб берилди",
+                        "❌ Бекор қилинди",
+                    ],
+                    required=True,
+                ),
+                "Jami_Summa": st.column_config.NumberColumn(
+                    "Жами сумма (сўм)", format="%d сўм"
+                ),
+            },
+            use_container_width=True,
+            num_rows="fixed",
+            key="store_orders_editor",
+        )
+
+        # Ўзгаришларни сақлаш тугмаси
+        if st.button("💾 Статусларни сақлаш", type="primary"):
+          edited_df.to_csv(CSV_FILE, index=False, encoding="utf-8-sig")
+          st.success("Буюртмалар статуслари муваффақиятли сақланди!")
+          st.rerun()
+
+        st.markdown("---")
+
+        col_btn1, col_btn2 = st.columns(2)
+
+        with col_btn1:
+          csv_data = edited_df.to_csv(index=False, encoding="utf-8-sig").encode(
+              "utf-8-sig"
+          )
+          st.download_button(
+              label="📥 Жадвални Excel форматида юклаб олиш",
+              data=csv_data,
+              file_name="degrox_store_orders.csv",
+              mime="text/csv",
+              use_container_width=True,
+          )
+
+        with col_btn2:
+          if st.button(
+              "🗑️ Буюртмалар тарихини тозалаш",
+              type="secondary",
+              use_container_width=True,
+          ):
+            os.remove(CSV_FILE)
+            st.success("Буюртмалар тарихи муваффақиятли тозаланди!")
+            st.rerun()
+      else:
+        st.info("Ҳозирча буюртмалар мавжуд эмас.")
   else:
     st.info(
         "Ҳозирча буюртмалар мавжуд эмас. Биринчи буюртмани бериб кўринг!"
