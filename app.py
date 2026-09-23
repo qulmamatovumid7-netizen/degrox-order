@@ -1,146 +1,157 @@
-import datetime
-import requests
+from datetime import datetime
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 import streamlit as st
 
 # Страница созламалари
 st.set_page_config(
-    page_title="Degrox - Буюртма тизими", page_icon="📦", layout="centered"
+    page_title="Degrox - Буюртма бериш тизими", page_icon="📦", layout="centered"
 )
 
-# Логотипни чиқариш
+# Google Sheets уланиши
+scope = [
+    "https://spreadsheets.google.com/feeds",
+    "https://www.googleapis.com/auth/drive",
+]
+
+# st.secrets орқали Google credentials маълумотларини оламиз
 try:
-    st.image("Лого/Degrox.png", width=200)
-except:
-    pass
+  creds_dict = dict(st.secrets["gcp_service_account"])
+  creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+  client = gspread.authorize(creds)
+  # Жадвал номи ёки URL манзили
+  sheet = client.open("degrox_orders").sheet1  # Жадвал номини текшириб қўйинг
+except Exception as e:
+  st.error(f"Google Жадвалга уланишда хатолик: {e}")
 
-st.title("📦 Degrox - Буюртма бериш тизими")
-st.write(
-    "Дўкон маълумотларини бир марта киритинг ва керакли маҳсулотлар миқдорини танлаб буюртма беринг!"
+# Сарлавҳа
+st.markdown(
+    """
+    <div style='text-align: center;'>
+        <h1>📦 Degrox - Буюртма бериш тизими</h1>
+        <p style='color: gray;'>Дўкон маълумотларини киритинг ва керакли маҳсулотлар миқдорини танлаб буюртма беринг!</p>
+    </div>
+""",
+    unsafe_allow_html=True,
 )
 
-# Google Apps Script Web App URL
-GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzEJ7N03E3QBevX2iNfoN7CeNa-lQ1fSwqxtoQbLD-1dFZ0g4bEvwtlhWsJP5H5QbEvTg/exec"
+st.markdown("---")
 
-# Маҳсулотлар каталоги ва нархлари (сўмда)
-PRODUCTS_CATALOG = {
-    "Гел для посуды 450 мл": 5200,
+# 1. Дўкон ва Агент маълумотлари
+st.markdown("### 1. Дўкон ва Агент маълумотлари")
+col1, col2 = st.columns(2)
+
+with col1:
+  agent_ismi = st.text_input("Агентнинг исми (Ф.И.О.)", value="Умид")
+  dokon_nomi = st.text_input("Дўкон номи", value="Жаҳонгир")
+
+with col2:
+  dokon_manzili = st.text_input("Дўкон манзили (Мўлжал)", value="Соғдияна")
+  dokon_tel = st.text_input("Дўкон телефон рақами", value="+998997779787")
+
+# Тўлов шартлари
+col_t1, col_t2 = st.columns(2)
+with col_t1:
+  tulov_turi = st.selectbox("Тўлов тури", ["Қарз", "Нақд", "Пластик"])
+with col_t2:
+  muddati = st.number_input(
+      "Тўлов муддати (кун)", min_value=0, max_value=90, value=7
+  )
+
+st.markdown("---")
+
+# 2. Маҳсулотлар рўйхати ва нархлари
+st.markdown("### 2. Маҳсулотлар ва миқдорларни танланг")
+st.write("Қуйидаги маҳсулотларнинг миқдорини киритинг:")
+
+# Маҳсулотлар луғати (Номи: Нархи)
+mahsulotlar_narxlari = {
+    "Гель для посуды 450 мл": 5200,
     "Казан Degrox 500 мл": 11500,
     "Анти-жир Degrox 500 мл": 11500,
     "Жиро удалитель Degrox 500 мл": 11500,
     "Анти-жир Verixo 500 мл": 18000,
-    "Унверсальный очиститель 500 мл": 15000,
+    "Универсальный очиститель 500 мл": 15000,
     "Стекло очиститель (Арзон) 500 мл": 5300,
     "Стекло очиститель (Киммат) 500 мл": 8600,
 }
 
-# --- 1-ҚАДАМ: Умумий маълумотлар (Дўкон ва Агент) ---
-st.subheader("1. Дўкон ва Агент маълумотлари")
+miqdorlar = {}
+jami_summa = 0
 
-col1, col2 = st.columns(2)
-with col1:
-    agent_name = st.text_input("Агентнинг исми (Ф.И.О.)")
-    shop_name = st.text_input("Дўкон номи")
+for nomi, narxi in mahsulotlar_narxlari.items():
+  c1, c2 = st.columns([3, 1])
+  with c1:
+    st.markdown(f"**{nomi}**")
+    st.caption(f"Нархи: {narxi:,} сўм".replace(",", " "))
+  with c2:
+    miqdor = st.number_input(
+        "Миқдор",
+        min_value=0,
+        max_value=1000,
+        value=0,
+        key=nomi,
+        label_visibility="collapsed",
+    )
+    miqdorlar[nomi] = miqdor
 
-with col2:
-    shop_address = st.text_input("Дўкон манзили (Мўлжал)")
-    shop_phone = st.text_input("Дўкон телефон рақами", value="+998")
+  jami_summa += miqdor * narxi
+  st.markdown("---")
 
-st.divider()
+# Жами суммани кўрсатиш
+st.info(f"### Жами буюртма суммаси: {jami_summa:,} сўм".replace(",", " "))
 
-# --- 2-ҚАДАМ: Маҳсулотларни танлаш ва миқдорини киритиш ---
-st.subheader("2. Маҳсулотлар ва миқдорларни танланг")
-st.write("Қуйидаги маҳсулотларнинг миқдорини киритинг:")
+# 3. Буюртмани тасдиқлаш ва юбориш
+if st.button(
+    "🚀 Буюртмани тасдиқлаш ва юбориш", type="primary", use_container_width=True
+):
+  if jami_summa == 0:
+    st.warning("Илтимос, камида битта маҳсулот миқдорини киритинг!")
+  else:
+    try:
+      vaqt = datetime.now().strftime("%Y-%m-%d %H:%M")
+      agent = agent_ismi
+      dokon_full = f"{dokon_manzili} / {dokon_nomi}"
 
-order_items = []
-total_sum = 0
+      # Танланган барча маҳсулотларни Google Жадвалга алоҳида сатрлар қилиб ёзиш
+      sanoq = 0
+      for nomi, miqdor in miqdorlar.items():
+        if miqdor > 0:
+          # Жадвалдаги устунлар тартиби: Vaqt, Agent, Mahsulot, Miqdor, Tulov, Muddati, Dokon
+          sheet.append_row(
+              [vaqt, agent, nomi, miqdor, tulov_turi, int(muddati), dokon_full]
+          )
+          sanoq += 1
 
-for product_name, price in PRODUCTS_CATALOG.items():
-    col_p1, col_p2 = st.columns([3, 1])
-    with col_p1:
-        st.write(f"**{product_name}**\n\n*Нархи:* {price:,.0f} сўм")
-    with col_p2:
-        qty = st.number_input(
-            "Сони",
-            min_value=0,
-            max_value=1000,
-            value=0,
-            step=1,
-            key=f"prod_{product_name}",
-            label_visibility="collapsed",
-        )
+      st.success(
+          f"🎉 Барча тасдиқланган маҳсулотлар ({sanoq} турдаги) Google Жадвалга"
+          " муваффақиятли ёзилди!"
+      )
 
-    if qty > 0:
-        item_total = qty * price
-        total_sum += item_total
-        order_items.append(
-            {
-                "name": product_name,
-                "price": price,
-                "qty": qty,
-                "total": item_total,
-            }
-        )
-    st.divider()
+      # Буюртма чекини чиқариш
+      st.markdown("### Буюртма чеки:")
+      st.markdown(
+          f"""
+            <div style='background-color: #f0f2f6; padding: 15px; border-radius: 10px;'>
+                <p><b>Дўкон:</b> {dokon_nomi}</p>
+                <p><b>Манзил:</b> {dokon_manzili}</p>
+                <p><b>Агент:</b> {agent_ismi}</p>
+                <p><b>Тўлов тури:</b> {tulov_turi} ({muddati} кун)</p>
+            </div>
+            """,
+          unsafe_allow_html=True,
+      )
 
-# Умумий суммани кўрсатиш
-if total_sum > 0:
-    st.info(f"🧮 **Жами буюртма суммаси:** {total_sum:,.0f} сўм")
+      for nomi, miqdor in miqdorlar.items():
+        if miqdor > 0:
+          narxi = mahsulotlar_narxlari[nomi]
+          st.write(
+              f"- {nomi} x {miqdor} та = {miqdor * narxi:,} сўм".replace(
+                  ",", " "
+              )
+          )
 
-# --- 3-ҚАДАМ: Буюртмани юбориш ---
-if st.button("🚀 Буюртмани тасдиқлаш ва юбориш", type="primary", use_container_width=True):
-    if not agent_name.strip():
-        st.error("Илтимос, агент исмини киритинг!")
-    elif not shop_name.strip():
-        st.error("Илтимос, дўкон номини киритинг!")
-    elif len(order_items) == 0:
-        st.warning("Илтимос, камида битта маҳсулот миқдорини кўрсатинг!")
-    else:
-        current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+      st.markdown(f"### Жами: {jami_summa:,} сўм".replace(",", " "))
 
-        with st.spinner("Буюртма юборилмоқда..."):
-            success_count = 0
-            fail_count = 0
-
-            for item in order_items:
-                payload = {
-                    "date": current_time,
-                    "agent": agent_name,
-                    "shop_name": shop_name,
-                    "shop_address": shop_address,
-                    "shop_phone": shop_phone,
-                    "category": "Маҳсулотлар",
-                    "product_name": f"{item['name']} ({item['price']} сўм)",
-                    "quantity": item["qty"],
-                    "total_price": item["total"],
-                }
-
-                try:
-                    response = requests.post(
-                        GOOGLE_SCRIPT_URL, json=payload, timeout=10
-                    )
-                    if response.status_code == 200:
-                        success_count += 1
-                    else:
-                        fail_count += 1
-                except:
-                    fail_count += 1
-
-            if success_count > 0 and fail_count == 0:
-                st.success(
-                    f"🎉 Барча маҳсулотлар муваффақиятли буюртма қилинди ва Google Жадвалга ёзилди!"
-                )
-                st.balloons()
-
-                st.write("### Буюртма чеки:")
-                st.info(
-                    f"**Дўкон:** {shop_name}\n\n**Манзил:** {shop_address}\n\n**Агент:** {agent_name}"
-                )
-                for item in order_items:
-                    st.write(
-                        f"- {item['name']} x {item['qty']} та = **{item['total']:,.0f} сўм**"
-                    )
-                st.write(f"### Жами: {total_sum:,.0f} сўм")
-            else:
-                st.warning(
-                    "⚠️ Буюртма юборилди, лекин Google Script URL манзилини ёки интернетни текширинг!"
-                )
+    except Exception as e:
+      st.error(f"Маълумотларни сақлашда хатолик юз берди: {e}")
