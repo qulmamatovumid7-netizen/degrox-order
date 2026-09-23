@@ -8,24 +8,25 @@ st.set_page_config(
     page_title="Degrox - Буюртма бериш тизими", page_icon="📦", layout="centered"
 )
 
-# Сарлавҳа
-st.markdown(
-    """
-    <div style='text-align: center;'>
-        <h1>📦 Degrox - Буюртма бериш тизими</h1>
-    </div>
-""",
-    unsafe_allow_html=True,
-)
-
 # CSV файл номи
 CSV_FILE = "orders.csv"
 
-# Вкладкаларни яратиш (Иккита ойна)
+# Вкладкаларни энг тепага яратамиз (Иккита ойна)
 tab1, tab2 = st.tabs(["📦 Буюртма бериш", "📋 Буюртмалар тарихи"])
 
 with tab1:
-  st.markdown("### Дўкон ва Агент маълумотлари")
+  st.markdown(
+      """
+        <div style='text-align: center;'>
+            <h1>📦 Degrox - Буюртма бериш тизими</h1>
+            <p style='color: gray;'>Дўкон маълумотларини киритинг ва керакли маҳсулотлар миқдорини танлаб буюртма беринг!</p>
+        </div>
+    """,
+      unsafe_allow_html=True,
+  )
+
+  st.markdown("---")
+  st.markdown("### 1. Дўкон ва Агент маълумотлари")
   col1, col2 = st.columns(2)
 
   with col1:
@@ -45,7 +46,7 @@ with tab1:
     )
 
   st.markdown("---")
-  st.markdown("### Маҳсулотлар ва миқдорларни танланг")
+  st.markdown("### 2. Маҳсулотлар ва миқдорларни танланг")
 
   mahsulotlar_narxlari = {
       "Гель для посуды 450 мл": 5200,
@@ -160,13 +161,11 @@ with tab2:
   if os.path.exists(CSV_FILE):
     df_orders = pd.read_csv(CSV_FILE)
     if not df_orders.empty:
-      # Тартиб рақамини (1, 2, 3...) қўшиб чиқариш
       df_orders.index = range(1, len(df_orders) + 1)
       df_orders.index.name = "№"
 
       st.dataframe(df_orders, use_container_width=True)
 
-      # CSV файлни юклаб олиш тугмаси
       csv_data = df_orders.to_csv(index=True, encoding="utf-8-sig").encode(
           "utf-8-sig"
       )
@@ -179,4 +178,6 @@ with tab2:
     else:
       st.info("Ҳозирча буюртмалар мавжуд эмас.")
   else:
-    st.info("Ҳозирча буюртмалар мавжуд эмас. Биринчи буюртмани бериб кўринг!")
+    st.info(
+        "Ҳозирча буюртмалар мавжуд эмас. Биринчи буюртмани бериб кўринг!"
+    )
