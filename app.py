@@ -1,28 +1,12 @@
 from datetime import datetime
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+import os
+import pandas as pd
 import streamlit as st
 
 # Страница созламалари
 st.set_page_config(
     page_title="Degrox - Буюртма бериш тизими", page_icon="📦", layout="centered"
 )
-
-# Google Sheets уланиши
-scope = [
-    "https://spreadsheets.google.com/feeds",
-    "https://www.googleapis.com/auth/drive",
-]
-
-# st.secrets орқали Google credentials маълумотларини оламиз
-try:
-  creds_dict = dict(st.secrets["gcp_service_account"])
-  creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-  client = gspread.authorize(creds)
-  # Жадвал номи ёки URL манзили
-  sheet = client.open("degrox_orders").sheet1  # Жадвал номини текшириб қўйинг
-except Exception as e:
-  st.error(f"Google Жадвалга уланишда хатолик: {e}")
 
 # Сарлавҳа
 st.markdown(
@@ -64,7 +48,6 @@ st.markdown("---")
 st.markdown("### 2. Маҳсулотлар ва миқдорларни танланг")
 st.write("Қуйидаги маҳсулотларнинг миқдорини киритинг:")
 
-# Маҳсулотлар луғати (Номи: Нархи)
 mahsulotlar_narxlari = {
     "Гель для посуды 450 мл": 5200,
     "Казан Degrox 500 мл": 11500,
@@ -101,6 +84,9 @@ for nomi, narxi in mahsulotlar_narxlari.items():
 # Жами суммани кўрсатиш
 st.info(f"### Жами буюртма суммаси: {jami_summa:,} сўм".replace(",", " "))
 
+# CSV файл номи
+CSV_FILE = "orders.csv"
+
 # 3. Буюртмани тасдиқлаш ва юбориш
 if st.button(
     "🚀 Буюртмани тасдиқлаш ва юбориш", type="primary", use_container_width=True
@@ -113,19 +99,38 @@ if st.button(
       agent = agent_ismi
       dokon_full = f"{dokon_manzili} / {dokon_nomi}"
 
-      # Танланган барча маҳсулотларни Google Жадвалга алоҳида сатрлар қилиб ёзиш
+      yangi_qatorlar = []
       sanoq = 0
+
+      # Танланган маҳсулотларни йиғиш
       for nomi, miqdor in miqdorlar.items():
         if miqdor > 0:
-          # Жадвалдаги устунлар тартиби: Vaqt, Agent, Mahsulot, Miqdor, Tulov, Muddati, Dokon
-          sheet.append_row(
-              [vaqt, agent, nomi, miqdor, tulov_turi, int(muddati), dokon_full]
-          )
+          yangi_qatorlar.append({
+              "Vaqt": vaqt,
+              "Agent": agent,
+              "Mahsulot": nomi,
+              "Miqdor": miqdor,
+              "Tulov": tulov_turi,
+              "Muddati": muddati,
+              "Dokon": dokon_full,
+          })
           sanoq += 1
 
+      if yangi_qatorlar:
+        df_yangi = pd.DataFrame(yangi_qatorlar)
+
+        # Агар файл олдин мавжуд бўлса, унга қўшиб ёчамиз, акс ҳолда янги яратамиз
+        if os.path.exists(CSV_FILE):
+          df_eski = pd.read_csv(CSV_FILE)
+          df_final = pd.concat([df_eski, df_yangi], ignore_index=True)
+        else:
+          df_final = df_yangi
+
+        df_final.to_csv(CSV_FILE, index=False, encoding="utf-8-sig")
+
       st.success(
-          f"🎉 Барча тасдиқланган маҳсулотлар ({sanoq} турдаги) Google Жадвалга"
-          " муваффақиятли ёзилди!"
+          f"🎉 Барча тасдиқланган маҳсулотлар ({sanoq} турдаги) тизимга"
+          " муваффақиятли сақланди!"
       )
 
       # Буюртма чекини чиқариш
