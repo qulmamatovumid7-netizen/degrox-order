@@ -9,7 +9,7 @@ st.set_page_config(
     page_title="Degrox - Буюртма бериш тизими", page_icon="📦", layout="centered"
 )
 
-# JSON файл номи (маълумотларни тартибли сақлаш учун JSON анча қулай)
+# JSON файл номи
 DATA_FILE = "orders.json"
 
 
@@ -29,6 +29,22 @@ def save_data(data):
   with open(DATA_FILE, "w", encoding="utf-8") as f:
     json.dump(data, f, ensure_ascii=False, indent=4)
 
+
+# Логотипларни саҳифа юқорисида ёниқма-ён чиқариш
+col_logo1, col_logo2, col_logo3 = st.columns([1, 1, 1])
+with col_logo2:  # Иккала логотип ўртада чиройли туриши учун
+  pass
+
+# Агар логотиплар алоҳида колонналарга қўйилса:
+l_col1, l_col2 = st.columns(2)
+with l_col1:
+  if os.path.exists("Лого/Degrox.png"):
+    st.image("Лого/Degrox.png", width=180)
+with l_col2:
+  if os.path.exists("Лого/Virexo.png"):
+    st.image("Лого/Virexo.png", width=180)
+
+st.markdown("---")
 
 # Вкладкаларни яратиш (Иккита ойна)
 tab1, tab2 = st.tabs(["📦 Буюртма бериш", "📋 Буюртмалар тарихи"])
@@ -113,7 +129,6 @@ with tab1:
       try:
         vaqt = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-        # Фақат сотиб олинган маҳсулотларни алоҳида рўйхат қилиб сақлаймиз
         tarkib = []
         for nomi, miqdor in miqdorlar.items():
           if miqdor > 0:
@@ -135,9 +150,8 @@ with tab1:
             "status": "⏳ Кутилмоқда",
         }
 
-        # Маълумотларни қўшиш
         all_orders = load_data()
-        all_orders.insert(0, yeni := yangi_buyurtma)  # Янгисини энг бошига қўшиш
+        all_orders.insert(0, yangi_buyurtma)
         save_data(all_orders)
 
         st.success(
@@ -175,7 +189,6 @@ with tab2:
   orders = load_data()
 
   if orders:
-    # Барчасини Excel га кўчириш учун тугма
     df_export = []
     for o in orders:
       tarkib_str = "; ".join(
@@ -220,18 +233,7 @@ with tab2:
 
     st.markdown("---")
 
-    # Ҳар бир буюртмани карточка кўринишида чиқарамиз
     for index, order in enumerate(orders):
-      status_color = (
-          "orange"
-          if order["status"] == "⏳ Кутилмоқда"
-          else (
-              "blue"
-              if order["status"] == "🚚 Йўлда"
-              else "green" if order["status"] == "✅ Етказиб берилди" else "red"
-          )
-      )
-
       with st.container(border=True):
         col_c1, col_c2 = st.columns([3, 1])
 
@@ -249,23 +251,23 @@ with tab2:
           st.write(f"💳 **Тўлов:** {order['tulov']}")
 
         with col_c2:
-          # Статусни ўзгартириш учун Selectbox ҳар бир буюртма карточкасида алоҳида туришади
+          status_options = [
+              "⏳ Кутилмоқда",
+              "🚚 Йўлда",
+              "✅ Етказиб берилди",
+              "❌ Бекор қилинди",
+          ]
+          current_status = (
+              order["status"]
+              if order["status"] in status_options
+              else "⏳ Кутилмоқда"
+          )
+
           yangi_status = st.selectbox(
               "Статус",
-              options=[
-                  "⏳ Кутилмоқда",
-                  "🚚 Йўлда",
-                  "✅ Етказиб берилди",
-                  "❌ Бекор қилинди",
-              ],
-              index=[
-                  "⏳ Кутилмоқда",
-                  "🚚 Йўлда",
-                  "✅ Етказиб берилди",
-                  "❌ Бекор қилинди",
-              ].index(order["status"]),
+              options=status_options,
+              index=status_options.index(current_status),
               key=f"status_{order['id']}",
-              label_visibility="collapsed",
           )
 
           if yangi_status != order["status"]:
