@@ -6,12 +6,21 @@ import streamlit as st
 
 # Страница созламалари
 st.set_page_config(
-    page_title="Degrox - Буюртма бериш тизими", page_icon="📦", layout="centered"
+    page_title="Degrox & Virexo - Буюртма бериш тизими",
+    page_icon="Virexo.png",
+    layout="centered",
 )
 
-# Сессияда логин қилганини текшириш
+# Сессияни текшириш (саҳифа янilanganda ҳам йўқолмаслиги учун)
 if "authenticated" not in st.session_state:
-  st.session_state["authenticated"] = False
+  # Агар URL'да логиндан ўтгани ҳақида белги бўлса, уни сақлаб қоламиз
+  if (
+      "logged_in" in st.query_params
+      and st.query_params["logged_in"] == "true"
+  ):
+    st.session_state["authenticated"] = True
+  else:
+    st.session_state["authenticated"] = False
 
 # Агар тизимга кирмаган бўлса, Логин ойнасини кўрсатиш
 if not st.session_state["authenticated"]:
@@ -30,9 +39,10 @@ if not st.session_state["authenticated"]:
       )
 
       if submit_button:
-        # Умумий ягона логин ва пароль текшируви
         if username == "Virexo+" and password == "220926":
           st.session_state["authenticated"] = True
+          # URL'га белги қўшиб қўямиз, шунда саҳифа янilanganda ҳам сессия ўчиб кетмайди
+          st.query_params["logged_in"] = "true"
           st.success("Хуш келибсиз!")
           st.rerun()
         else:
@@ -46,6 +56,9 @@ if not st.session_state["authenticated"]:
 # Чиқиш (Logout) тугмаси
 if st.sidebar.button("🚪 Тизимдан чиқиш"):
   st.session_state["authenticated"] = False
+  # URL параметрини ҳам тозалаб юборамиз
+  if "logged_in" in st.query_params:
+    del st.query_params["logged_in"]
   st.rerun()
 
 # JSON файл номи
@@ -87,7 +100,7 @@ with tab1:
   st.markdown(
       """
         <div style='text-align: center;'>
-            <h1>📦 Degrox - Буюртма бериш тизими</h1>
+            <h1>📦 Degrox & Virexo - Буюртма бериш тизими</h1>
             <p style='color: gray;'>Дўкон маълумотларини киритинг ва керакли маҳсулотлар миқдорини танлаб буюртма беринг!</p>
         </div>
     """,
