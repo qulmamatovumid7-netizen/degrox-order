@@ -1,4 +1,5 @@
 from datetime import datetime
+import json
 import os
 import pandas as pd
 import streamlit as st
@@ -8,8 +9,26 @@ st.set_page_config(
     page_title="Degrox - Буюртма бериш тизими", page_icon="📦", layout="centered"
 )
 
-# CSV файл номи
-CSV_FILE = "orders.csv"
+# JSON файл номи (маълумотларни тартибли сақлаш учун JSON анча қулай)
+DATA_FILE = "orders.json"
+
+
+# Маълумотларни ўқиш функцияси
+def load_data():
+  if os.path.exists(DATA_FILE):
+    try:
+      with open(DATA_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+    except:
+      return []
+  return []
+
+
+# Маълумотларни сақлаш функцияси
+def save_data(data):
+  with open(DATA_FILE, "w", encoding="utf-8") as f:
+    json.dump(data, f, ensure_ascii=False, indent=4)
+
 
 # Вкладкаларни яратиш (Иккита ойна)
 tab1, tab2 = st.tabs(["📦 Буюртма бериш", "📋 Буюртмалар тарихи"])
@@ -94,40 +113,32 @@ with tab1:
       try:
         vaqt = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-        # Буюртма қилинган маҳсулотларни матн кўринишида йиғамиз
-        tanlangan_mahsulotlar_list = []
+        # Фақат сотиб олинган маҳсулотларни алоҳида рўйхат қилиб сақлаймиз
+        tarkib = []
         for nomi, miqdor in miqdorlar.items():
           if miqdor > 0:
-            tanlangan_mahsulotlar_list.append(f"{nomi}: {miqdor} та")
-
-        mahsulotlar_matni = "; ".join(tanlangan_mahsulotlar_list)
+            narxi = mahsulotlar_narxlari[nomi]
+            tarkib.append(
+                {"mahsulot": nomi, "miqdor": miqdor, "narx": narxi * miqdor}
+            )
 
         yangi_buyurtma = {
-            "Vaqt": vaqt,
-            "Agent": agent_ismi,
-            "Dokon": dokon_nomi,
-            "Manzil": dokon_manzili,
-            "Telefon": dokon_tel,
-            "Buyurtma_tarkibi": mahsulotlar_matni,
-            "Jami_Summa": jami_summa,
-            "Tulov_turi": f"{tulov_turi} ({muddati} кун)",
-            "Status": "⏳ Кутилмоқда",
+            "id": datetime.now().strftime("%Y%m%d%H%M%S"),
+            "vaqt": vaqt,
+            "agent": agent_ismi,
+            "dokon": dokon_nomi,
+            "manzil": dokon_manzili,
+            "telefon": dokon_tel,
+            "tulov": f"{tulov_turi} ({muddati} кун)",
+            "tarkib": tarkib,
+            "jami": jami_summa,
+            "status": "⏳ Кутилмоқда",
         }
 
-        df_yangi = pd.DataFrame([yangi_buyurtma])
-
-        # Агар эски форматдаги файл мавжуд бўлса, уни янги форматга ўтказиш ёки янгидан бошлаш учун ўчирамиз
-        if os.path.exists(CSV_FILE):
-          df_eski = pd.read_csv(CSV_FILE)
-          # Агар эски файлда янги устунлар бўлмаса, файлни тозалаб юборамиз (структура бузилмаслиги учун)
-          if "Buyurtma_tarkibi" not in df_eski.columns:
-            df_final = df_yangi
-          else:
-            df_final = pd.concat([df_eski, df_yangi], ignore_index=True)
-        else:
-          df_final = df_yangi
-
-        df_final.to_csv(CSV_FILE, index=False, encoding="utf-8-sig")
+        # Маълумотларни қўшиш
+        all_orders = load_data()
+        all_orders.insert(0, yeni := yangi_buyurtma)  # Янгисини энг бошига қўшиш
+        save_data(all_orders)
 
         st.success(
             "🎉 Дўконнинг умумий буюртмаси тизимга муваффақиятли сақланди!"
@@ -147,14 +158,11 @@ with tab1:
             unsafe_allow_html=True,
         )
 
-        for nomi, miqdor in miqdorlar.items():
-          if miqdor > 0:
-            narxi = mahsulotlar_narxlari[nomi]
-            st.write(
-                f"- {nomi} x {miqdor} та = {miqdor * narxi:,} сўм".replace(
-                    ",", " "
-                )
-            )
+        for item in tarkib:
+          st.write(
+              f"- {item['mahsulot']} x {item['miqdor']} та ="
+              f" {item['narx']:,} сўм".replace(",", " ")
+          )
 
         st.markdown(f"### Жами: {jami_summa:,} сўм".replace(",", " "))
 
@@ -162,86 +170,122 @@ with tab1:
         st.error(f"Маълумотларни сақлашда хатолик юз берди: {e}")
 
 with tab2:
-  st.markdown("### 📋 Дўконларнинг умумий буюртмалар тарихи")
+  st.markdown("### 📋 Дўконларнинг буюртмалар тарихи")
 
-  if os.path.exists(CSV_FILE):
-    df_orders = pd.read_csv(CSV_FILE)
+  orders = load_data()
 
-    # Агар эски форматдаги файл бўлса, фойдаланувчуга уни тозалашни маслаҳат берамиз
-    if "Buyurtma_tarkibi" not in df_orders.columns:
-      st.warning(
-          "⚠️ Эски форматдаги буюртмалар аниқланди. Янги умумий буюртмалар"
-          " тизимига ўтиш учун илтимос, пастдаги тугма орқали тарихни"
-          " тозалаб юборинг!"
+  if orders:
+    # Барчасини Excel га кўчириш учун тугма
+    df_export = []
+    for o in orders:
+      tarkib_str = "; ".join(
+          [f"{i['mahsulot']}: {i['miqdor']} та" for i in o["tarkib"]]
       )
-      if st.button("🗑️ Эски тарихни тозалаш", type="primary"):
-        os.remove(CSV_FILE)
-        st.success("Тарих тозаланди! Энди янги буюртма беришингиз мумкин.")
+      df_export.append({
+          "Vaqt": o["vaqt"],
+          "Agent": o["agent"],
+          "Dokon": o["dokon"],
+          "Manzil": o["manzil"],
+          "Telefon": o["telefon"],
+          "Tarkibi": tarkib_str,
+          "Jami Сумма": o["jami"],
+          "Tolov": o["tulov"],
+          "Status": o["status"],
+      })
+
+    df_dl = pd.DataFrame(df_export)
+    csv_data = df_dl.to_csv(index=False, encoding="utf-8-sig").encode(
+        "utf-8-sig"
+    )
+
+    col_d1, col_d2 = st.columns(2)
+    with col_d1:
+      st.download_button(
+          label="📥 Жадвални Excel форматида юклаб олиш",
+          data=csv_data,
+          file_name="degrox_store_orders.csv",
+          mime="text/csv",
+          use_container_width=True,
+      )
+    with col_d2:
+      if st.button(
+          "🗑️ Барча тарихни тозалаш",
+          type="secondary",
+          use_container_width=True,
+      ):
+        if os.path.exists(DATA_FILE):
+          os.remove(DATA_FILE)
+        st.success("Буюртмалар тарихи тозаланди!")
         st.rerun()
-    else:
-      if not df_orders.empty:
-        st.write(
-            "Ҳар бир дўкон буюртмаси битта сатрда кўрсатилган. Статусни"
-            " ўзгартириб сақлашингиз мумкин:"
-        )
 
-        # Интерактив жадвал
-        edited_df = st.data_editor(
-            df_orders,
-            column_config={
-                "Status": st.column_config.SelectboxColumn(
-                    "Статус",
-                    help="Буюртма ҳолатини танланг",
-                    options=[
-                        "⏳ Кутилмоқда",
-                        "🚚 Йўлда",
-                        "✅ Етказиб берилди",
-                        "❌ Бекор қилинди",
-                    ],
-                    required=True,
-                ),
-                "Jami_Summa": st.column_config.NumberColumn(
-                    "Жами сумма (сўм)", format="%d сўм"
-                ),
-            },
-            use_container_width=True,
-            num_rows="fixed",
-            key="store_orders_editor",
-        )
+    st.markdown("---")
 
-        # Ўзгаришларни сақлаш тугмаси
-        if st.button("💾 Статусларни сақлаш", type="primary"):
-          edited_df.to_csv(CSV_FILE, index=False, encoding="utf-8-sig")
-          st.success("Буюртмалар статуслари муваффақиятли сақланди!")
-          st.rerun()
-
-        st.markdown("---")
-
-        col_btn1, col_btn2 = st.columns(2)
-
-        with col_btn1:
-          csv_data = edited_df.to_csv(index=False, encoding="utf-8-sig").encode(
-              "utf-8-sig"
+    # Ҳар бир буюртмани карточка кўринишида чиқарамиз
+    for index, order in enumerate(orders):
+      status_color = (
+          "orange"
+          if order["status"] == "⏳ Кутилмоқда"
+          else (
+              "blue"
+              if order["status"] == "🚚 Йўлда"
+              else "green" if order["status"] == "✅ Етказиб берилди" else "red"
           )
-          st.download_button(
-              label="📥 Жадвални Excel форматида юклаб олиш",
-              data=csv_data,
-              file_name="degrox_store_orders.csv",
-              mime="text/csv",
-              use_container_width=True,
+      )
+
+      with st.container(border=True):
+        col_c1, col_c2 = st.columns([3, 1])
+
+        with col_c1:
+          st.markdown(
+              f"### 🏪 {order['dokon']} &nbsp;&nbsp; <span"
+              f" style='font-size:14px; color:gray;'>({order['vaqt']})</span>",
+              unsafe_allow_html=True,
+          )
+          st.write(
+              f"📍 **Манзил:** {order['manzil']} &nbsp;&nbsp;|&nbsp;&nbsp; 📞"
+              f" **Тел:** {order['telefon']} &nbsp;&nbsp;|&nbsp;&nbsp; 👤"
+              f" **Агент:** {order['agent']}"
+          )
+          st.write(f"💳 **Тўлов:** {order['tulov']}")
+
+        with col_c2:
+          # Статусни ўзгартириш учун Selectbox ҳар бир буюртма карточкасида алоҳида туришади
+          yangi_status = st.selectbox(
+              "Статус",
+              options=[
+                  "⏳ Кутилмоқда",
+                  "🚚 Йўлда",
+                  "✅ Етказиб берилди",
+                  "❌ Бекор қилинди",
+              ],
+              index=[
+                  "⏳ Кутилмоқда",
+                  "🚚 Йўлда",
+                  "✅ Етказиб берилди",
+                  "❌ Бекор қилинди",
+              ].index(order["status"]),
+              key=f"status_{order['id']}",
+              label_visibility="collapsed",
           )
 
-        with col_btn2:
-          if st.button(
-              "🗑️ Буюртмалар тарихини тозалаш",
-              type="secondary",
-              use_container_width=True,
-          ):
-            os.remove(CSV_FILE)
-            st.success("Буюртмалар тарихи муваффақиятли тозаланди!")
+          if yangi_status != order["status"]:
+            orders[index]["status"] = yangi_status
+            save_data(orders)
             st.rerun()
-      else:
-        st.info("Ҳозирча буюртмалар мавжуд эмас.")
+
+        st.markdown("**Харид қилинган маҳсулотлар:**")
+        for item in order["tarkib"]:
+          st.markdown(
+              f"- {item['mahsulot']} — **{item['miqdor']} та** ({item['narx']:,}"
+              f" сўм)".replace(",", " ")
+          )
+
+        st.markdown(
+            f"**Жами сумма:** <span"
+            f" style='color:green; font-size:18px;'><b>{order['jami']:,} сўм</b></span>"
+            .replace(",", " "),
+            unsafe_allow_html=True,
+        )
   else:
     st.info(
         "Ҳозирча буюртмалар мавжуд эмас. Биринчи буюртмани бериб кўринг!"
