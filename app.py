@@ -13,7 +13,6 @@ st.set_page_config(
 
 # Сессияни текшириш (саҳифа янilanganda ҳам йўқолмаслиги учун)
 if "authenticated" not in st.session_state:
-  # Агар URL'да логиндан ўтгани ҳақида белги бўлса, уни сақлаб қоламиз
   if (
       "logged_in" in st.query_params
       and st.query_params["logged_in"] == "true"
@@ -41,13 +40,12 @@ if not st.session_state["authenticated"]:
       if submit_button:
         if username == "Virexo+" and password == "220926":
           st.session_state["authenticated"] = True
-          # URL'га белги қўшиб қўямиз, шунда саҳифа янilanganda ҳам сессия ўчиб кетмайди
           st.query_params["logged_in"] = "true"
           st.success("Хуш келибсиз!")
           st.rerun()
         else:
           st.error("Логин ёки пароль нотўғри!")
-  st.stop()  # Логин тўғри киритилмагунча қолган кодни тўхтатиб туради
+  st.stop()
 
 # ==========================================
 # АГАР ТИЗИМГА МУВАФФАҚИЯТЛИ КИРИЛГАН БЎЛСА:
@@ -56,12 +54,11 @@ if not st.session_state["authenticated"]:
 # Чиқиш (Logout) тугмаси
 if st.sidebar.button("🚪 Тизимдан чиқиш"):
   st.session_state["authenticated"] = False
-  # URL параметрини ҳам тозалаб юборамиз
   if "logged_in" in st.query_params:
     del st.query_params["logged_in"]
   st.rerun()
 
-# JSON файл номи
+# JSON файл номи (Буюртмалар ўчиб кетмаслиги учун доимий файл)
 DATA_FILE = "orders.json"
 
 
@@ -70,16 +67,21 @@ def load_data():
   if os.path.exists(DATA_FILE):
     try:
       with open(DATA_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
-    except:
-      return []
+        content = f.read()
+        if content.strip():
+          return json.loads(content)
+    except Exception as e:
+      print(f"Ўқишда хатолик: {e}")
   return []
 
 
-# Маълумотларни сақлаш функцияси
+# Маълумотларни хавфсиз сақлаш функцияси
 def save_data(data):
-  with open(DATA_FILE, "w", encoding="utf-8") as f:
-    json.dump(data, f, ensure_ascii=False, indent=4)
+  try:
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+      json.dump(data, f, ensure_ascii=False, indent=4)
+  except Exception as e:
+    st.error(f"Маълумотларни сақлашда хатолик: {e}")
 
 
 # Логотипларни саҳифа юқорисида ёнма-ён чиқариш
@@ -180,9 +182,12 @@ with tab1:
         for nomi, miqdor in miqdorlar.items():
           if miqdor > 0:
             narxi = mahsulotlar_narxlari[nomi]
-            tarkib.append(
-                {"mahsulot": nomi, "miqdor": miqdor, "narx": narxi * miqdor}
-            )
+            tarkib.append({
+                "mahsulot": nomi,
+                "miqdor": miqdor,
+                "dona_narx": narxi,
+                "narx": narxi * miqdor,
+            })
 
         yangi_buyurtma = {
             "id": datetime.now().strftime("%Y%m%d%H%M%S"),
@@ -221,8 +226,8 @@ with tab1:
 
         for item in tarkib:
           st.write(
-              f"- {item['mahsulot']} x {item['miqdor']} та ="
-              f" {item['narx']:,} сўм".replace(",", " ")
+              f"- {item['mahsulot']} x {item['miqdor']} та ({item['dona_narx']:,}"
+              f" сўмдан) = {item['narx']:,} сўм".replace(",", " ")
           )
 
         st.markdown(f"### Жами: {jami_summa:,} сўм".replace(",", " "))
@@ -238,9 +243,10 @@ with tab2:
   if orders:
     df_export = []
     for o in orders:
-      tarkib_str = "; ".join(
-          [f"{i['mahsulot']}: {i['miqdor']} та" for i in o["tarkib"]]
-      )
+      tarkib_str = "; ".join([
+          f"{i['mahsulot']}: {i['miqdor']} та ({i['dona_narx']} сўмдан)"
+          for i in o["tarkib"]
+      ])
       df_export.append({
           "Vaqt": o["vaqt"],
           "Agent": o["agent"],
@@ -325,8 +331,10 @@ with tab2:
         st.markdown("**Харид қилинган маҳсулотлар:**")
         for item in order["tarkib"]:
           st.markdown(
-              f"- {item['mahsulot']} — **{item['miqdor']} та** ({item['narx']:,}"
-              f" сўм)".replace(",", " ")
+              f"- {item['mahsulot']} — **{item['miqdor']} та** ×"
+              f" {item['dona_narx']:,} сўм = **{item['narx']:,} сўм**".replace(
+                  ",", " "
+              )
           )
 
         st.markdown(
